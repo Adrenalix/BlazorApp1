@@ -1,0 +1,158 @@
+﻿@page "/company"
+@using BlazorApp1.Data
+@inject AppService AppService
+@inject IJSRuntime JSRuntime
+
+
+<h3>Company</h3>
+
+<h4>Employees</h4>
+@if (employees == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Department</th>
+                <th>Update</th>
+                <th>Delete</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var employee in employees)
+            {
+                <tr>
+                    <td>@employee.FirstName</td>
+                    <td>@employee.LastName</td>
+                    <td>@employee.Department?.DepartmentName</td>
+                    <td><button @onclick="() => StartUpdateEmployee(employee)" class="update-button">Update</button></td>
+                    <td><button @onclick="() => ConfirmDeleteEmployee(employee)" class="delete-button">Delete</button></td>
+                </tr>
+
+            }
+        </tbody>
+    </table>
+}
+
+<button @onclick="ToggleAddEmployeeForm">Add Employee</button>
+
+@if (showAddEmployeeForm)
+{
+    <form @onsubmit="AddEmployee">
+        <label for="firstName">First Name:</label>
+        <input @bind="newEmployee.FirstName" id="firstName" />
+
+        <label for="lastName">Last Name:</label>
+        <input @bind="newEmployee.LastName" id="lastName" />
+
+        <label for="department">Department:</label>
+        <select @bind="selectedDepartmentId" id="department">
+            <option value="0">Select Department</option>
+            @foreach (var department in departments)
+            {
+                <option value="@department.DepartmentId">@department.DepartmentName</option>
+            }
+        </select>
+
+        <button type="submit">Submit</button>
+    </form>
+}
+
+@if (employeeToUpdate != null)
+{
+    <EditForm Model="employeeToUpdate" OnValidSubmit="UpdateEmployee">
+        <InputText @bind-Value="employeeToUpdate.FirstName" />
+        <InputText @bind-Value="employeeToUpdate.LastName" />
+        <select id="department" @bind="employeeToUpdate.DepartmentId">
+            @foreach (var department in departments)
+            {
+                <option value="@department.DepartmentId">@department.DepartmentName</option>
+            }
+        </select>
+        <button type="submit">Update Employee</button>
+    </EditForm>
+}
+
+@code {
+    private List<Employee> employees;
+    private List<Department> departments;
+    private bool showAddEmployeeForm;
+    private Employee newEmployee = new Employee();
+    private int selectedDepartmentId;
+    private Employee employeeToUpdate;
+
+    private void StartUpdateEmployee(Employee employee)
+    {
+        employeeToUpdate = employee;                                     
+    }
+
+    private void ToggleAddEmployeeForm()
+    {
+        showAddEmployeeForm = !showAddEmployeeForm;
+        if (showAddEmployeeForm)
+        {
+
+        }
+    }
+    
+    private async Task UpdateEmployee()
+    {
+        await AppService.UpdateEmployeeAsync(employeeToUpdate);
+        employees = await AppService.GetEmployeeList(); 
+        employeeToUpdate = null;
+    }
+    
+    private async Task ConfirmDeleteEmployee(Employee employee)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to delete {employee.FirstName} {employee.LastName}?");
+        if (confirm)
+        {
+            await DeleteEmployee(employee.EmployeeId);
+        }
+    }
+
+    private async Task DeleteEmployee(int employeeId)
+    {
+        await AppService.DeleteEmployeeAsync(employeeId);
+        employees = await AppService.GetEmployeeList();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await UpdateList();
+    }
+
+    private void ShowAddEmployeeForm()
+    {
+        showAddEmployeeForm = true;
+        selectedDepartmentId = 0;
+    }
+
+    private async Task AddEmployee()
+    {
+        if (selectedDepartmentId > 0) 
+        {
+            var selectedDepartment = departments.FirstOrDefault(d => d.DepartmentId == selectedDepartmentId);
+            if (selectedDepartment != null)
+            {
+                newEmployee.DepartmentId = selectedDepartment.DepartmentId;
+
+                await AppService.AddEmployeeAsync(newEmployee);
+                await UpdateList();
+                showAddEmployeeForm = false; 
+                newEmployee = new Employee(); 
+            }
+        }
+    }
+    private async Task UpdateList()
+    {
+        employees = await AppService.GetEmployeeList();
+        departments = await AppService.GetDepartmentList();
+    }
+}
+
